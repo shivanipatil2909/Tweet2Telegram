@@ -1,0 +1,10 @@
+{
+  "name": "elon-tweets",
+  "version": "1.0.0",
+  "description": "A program to fetch tweets from Elon Musk using rettiwt-core",
+  "main": "index.js",
+  "type": "module",
+  "dependencies": {
+    "rettiwt-core": "*"
+  }
+}
