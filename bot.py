@@ -13,84 +13,74 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-# Initialize OpenAI and Telegram Bot
 openai.api_key = OPENAI_API_KEY
 bot = telegram.Bot(token=TELEGRAM_BOT_TOKEN)
 
-# Store last processed tweet to avoid duplicates
 last_tweet = None
 
-# Keywords for intent detection
-KEYWORDS = {
-    "partnership": ["collaboration", "partnered", "teamed up", "joining forces"],
-    "important_announcement": ["announcement", "launch", "breaking", "important update", "big news"],
-}
-
-# Templates
-TEMPLATES = {
-    "partnership": [
-        "🚀 New Partnership Alert!\n\n{tweet}\n\n🔗 {link}",
-        "🎉 We’re excited to announce our latest collaboration!\n\n{tweet}\n\nCheck it out: {link}"
-    ],
-    "important_announcement": [
-        "📢 Important Announcement!\n\n{tweet}\n\n🔗 More details: {link}",
-        "🔥 Breaking News!\n\n{tweet}\n\nGet the full story: {link}"
-    ],
-    "default": [
-        "✨ Latest Update from Zo!\n\n{tweet}\n\n🔗 Read more: {link}",
-        "💡 Stay in the loop!\n\n{tweet}\n\nCheck it out: {link}"
-    ]
-}
-
-# Read latest tweet from JSON file (Node.js saves it here)
+# Read latest tweet from JSON file
 def read_latest_tweet():
     try:
         with open("latest_tweet.json", "r") as file:
             data = json.load(file)
             return data.get("tweet")
-    except Exception as e:
-        print(f"❌ Error reading tweet: {e}")
+    except FileNotFoundError:
+        print("❌ No tweet file found.")
+        return None
+    except json.JSONDecodeError:
+        print("❌ Error decoding tweet JSON.")
         return None
 
-# Extract link from tweet text (assuming URL is at the end)
-def extract_link(tweet):
-    words = tweet.split()
-    return words[-1] if words[-1].startswith("http") else None
+# **Intent Detection Keywords**
+IMPORTANT_KEYWORDS = ["partnership", "announcement", "important", "launch", "giveaway", "contest"]
+IGNORE_KEYWORDS = ["random", "fun", "meme", "joke"]
 
-# Detect intent using AI
-def detect_intent(tweet):
+def check_intent(tweet):
+    tweet_lower = tweet.lower()
+    
+    if any(keyword in tweet_lower for keyword in IMPORTANT_KEYWORDS):
+        return "important"
+    if any(keyword in tweet_lower for keyword in IGNORE_KEYWORDS):
+        return "ignore"
+    return "normal"
+
+# **Templates for Messages**
+TEMPLATES = [
+    "🚨 Quest Alert 🚨\n\n{tweet}\n\n🔗 Check it out: https://x.com/joinzo",
+    "📢 Weekly Community Call Announcement!\n\n{tweet}\n\n🔗 Join us: https://x.com/joinzo",
+    "⭐ Special Announcement ⭐\n\n{tweet}\n\n🎁 Don't miss it: https://x.com/joinzo"
+]
+
+# **Generate Telegram Message**
+def generate_telegram_message(tweet):
+    intent = check_intent(tweet)
+    
+    if intent == "ignore":
+        print("⏳ Tweet is not important, skipping.")
+        return None
+    
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-4o-mini",
+            model="gpt-4o",
             messages=[
-                {"role": "system", "content": "You are a social media assistant. Classify the tweet as 'partnership', 'important_announcement', or 'default'."},
-                {"role": "user", "content": f'Classify this tweet: "{tweet}"'}
+                {"role": "system", "content": "You are a social media assistant. Format tweets into engaging Telegram posts."},
+                {"role": "user", "content": f'Tweet: "{tweet}". Format this tweet in an engaging way using one of these templates:\n\n{TEMPLATES}'}
             ]
         )
-        intent = response["choices"][0]["message"]["content"].strip().lower()
-        if intent in TEMPLATES:
-            return intent
-        return "default"
+        return response["choices"][0]["message"]["content"]
     except Exception as e:
-        print(f"❌ Error detecting intent: {e}")
-        return "default"
+        print(f"❌ OpenAI API error: {e}")
+        return random.choice(TEMPLATES).format(tweet=tweet)  # Use random template if API fails
 
-# Generate AI-based formatted message
-def generate_telegram_message(tweet):
-    link = extract_link(tweet) or "https://x.com/joinzo"
-    intent = detect_intent(tweet)
-    template = random.choice(TEMPLATES[intent])
-    return template.format(tweet=tweet, link=link)
-
-# Send message to Telegram
+# **Send Telegram Message**
 def send_telegram_message(message):
     try:
         bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
         print("✅ Message sent to Telegram!")
     except Exception as e:
-        print(f"❌ Error sending message: {e}")
+        print(f"❌ Telegram error: {e}")
 
-# Main loop to check for new tweets
+# **Main Loop**
 def main():
     global last_tweet
     while True:
@@ -98,11 +88,12 @@ def main():
         if tweet and tweet != last_tweet:
             last_tweet = tweet
             message = generate_telegram_message(tweet)
-            send_telegram_message(message)
+            if message:
+                send_telegram_message(message)
         else:
             print("⏳ No new tweet found.")
-
-        time.sleep(60)  # Check every 60 seconds
+        
+        time.sleep(60)
 
 if __name__ == "__main__":
     main()
