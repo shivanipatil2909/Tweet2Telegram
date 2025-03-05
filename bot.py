@@ -3,6 +3,7 @@ import json
 import openai
 import telegram
 import time
+import random
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -19,6 +20,28 @@ bot = telegram.Bot(token=TELEGRAM_BOT_TOKEN)
 # Store last processed tweet to avoid duplicates
 last_tweet = None
 
+# Keywords for intent detection
+KEYWORDS = {
+    "partnership": ["collaboration", "partnered", "teamed up", "joining forces"],
+    "important_announcement": ["announcement", "launch", "breaking", "important update", "big news"],
+}
+
+# Templates
+TEMPLATES = {
+    "partnership": [
+        "🚀 New Partnership Alert!\n\n{tweet}\n\n🔗 {link}",
+        "🎉 We’re excited to announce our latest collaboration!\n\n{tweet}\n\nCheck it out: {link}"
+    ],
+    "important_announcement": [
+        "📢 Important Announcement!\n\n{tweet}\n\n🔗 More details: {link}",
+        "🔥 Breaking News!\n\n{tweet}\n\nGet the full story: {link}"
+    ],
+    "default": [
+        "✨ Latest Update from Zo!\n\n{tweet}\n\n🔗 Read more: {link}",
+        "💡 Stay in the loop!\n\n{tweet}\n\nCheck it out: {link}"
+    ]
+}
+
 # Read latest tweet from JSON file (Node.js saves it here)
 def read_latest_tweet():
     try:
@@ -29,20 +52,35 @@ def read_latest_tweet():
         print(f"❌ Error reading tweet: {e}")
         return None
 
-# Generate AI-based message for Telegram
-def generate_telegram_message(tweet):
+# Extract link from tweet text (assuming URL is at the end)
+def extract_link(tweet):
+    words = tweet.split()
+    return words[-1] if words[-1].startswith("http") else None
+
+# Detect intent using AI
+def detect_intent(tweet):
     try:
         response = openai.ChatCompletion.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "You are a social media assistant. Make announcements engaging."},
-                {"role": "user", "content": f'Tweet: "{tweet}". Generate an engaging Telegram message.'}
+                {"role": "system", "content": "You are a social media assistant. Classify the tweet as 'partnership', 'important_announcement', or 'default'."},
+                {"role": "user", "content": f'Classify this tweet: "{tweet}"'}
             ]
         )
-        return response["choices"][0]["message"]["content"]
+        intent = response["choices"][0]["message"]["content"].strip().lower()
+        if intent in TEMPLATES:
+            return intent
+        return "default"
     except Exception as e:
-        print(f"❌ Error generating AI message: {e}")
-        return f"🚀 New tweet alert!\n\"{tweet}\""
+        print(f"❌ Error detecting intent: {e}")
+        return "default"
+
+# Generate AI-based formatted message
+def generate_telegram_message(tweet):
+    link = extract_link(tweet) or "https://x.com/joinzo"
+    intent = detect_intent(tweet)
+    template = random.choice(TEMPLATES[intent])
+    return template.format(tweet=tweet, link=link)
 
 # Send message to Telegram
 def send_telegram_message(message):
