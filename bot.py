@@ -2,10 +2,10 @@ import os
 import json
 import openai
 import telegram
-import time
-import random
-from dotenv import load_dotenv
 import asyncio
+import random
+from telegram.helpers import escape_markdown
+from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
@@ -14,21 +14,33 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-openai_client = openai.OpenAI(api_key=OPENAI_API_KEY)
+openai_client = openai.AsyncOpenAI(api_key=OPENAI_API_KEY)  # ✅ Corrected API Call
 bot = telegram.Bot(token=TELEGRAM_BOT_TOKEN)
 
-# Define Zop Labs link
+# Zop Labs link
 ZOP_LABS_LINK = "https://x.com/joinzo"
 
-# Read latest tweet from JSON file (Handles Unicode Errors)
+# Predefined Message Templates 🔥
+MESSAGE_TEMPLATES = [
+    "🚀 *Breaking News\!* 🚀\n\n{tweet}\n\n🔗 [Tweet Link]({tweet_link})\n🌟 Stay updated with [Zop Labs]({zop_labs_link})",
+    "🎯 *Quest Alert\!* 🎯\n\n📢 {tweet}\n\n🔗 [Tweet Link]({tweet_link})\n🔍 Learn more at [Zop Labs]({zop_labs_link})",
+    "🔥 *Web3 Game Changer\!* 🔥\n\n{tweet}\n\n🚀 Read now: [Tweet Link]({tweet_link})\n🔗 More at [Zop Labs]({zop_labs_link})",
+    "🎉 *Big Announcement\!* 🎉\n\n{tweet}\n\n🔗 Read more: [Tweet Link]({tweet_link})\n👀 Check out [Zop Labs]({zop_labs_link})",
+    "💡 *Innovator Spotlight\!* 💡\n\n🚀 {tweet}\n\n🔗 [Tweet Link]({tweet_link})\n🌍 Stay tuned with [Zop Labs]({zop_labs_link})",
+    "📢 *Community Call\!* 📢\n\n{tweet}\n\n🔗 [Tweet Link]({tweet_link})\n📅 Join us at [Zop Labs]({zop_labs_link})",
+    "🛠 *Dev Update\!* 🛠\n\n{tweet}\n\n🔗 [Tweet Link]({tweet_link})\n👨‍💻 Explore at [Zop Labs]({zop_labs_link})",
+    "🚨 *Security Alert\!* 🚨\n\n{tweet}\n\n🔗 [Tweet Link]({tweet_link})\n🔍 Stay secure with [Zop Labs]({zop_labs_link})"
+]
+
+# Read latest tweet from JSON file
 def read_latest_tweet():
     try:
         with open("latest_tweet.json", "r", encoding="utf-8") as file:
             data = json.load(file)
-            return data.get("tweet")
+            return data.get("tweet"), data.get("tweet_link")
     except (FileNotFoundError, json.JSONDecodeError):
         print("❌ No valid tweet file found.")
-        return None
+        return None, None
 
 # Save last processed tweet
 def save_last_tweet(tweet):
@@ -44,58 +56,37 @@ def load_last_tweet():
     except (FileNotFoundError, json.JSONDecodeError):
         return None
 
-# Intent Detection Keywords
-IMPORTANT_KEYWORDS = ["partnership", "announcement", "important", "launch", "giveaway", "contest"]
-IGNORE_KEYWORDS = ["random", "fun", "meme", "joke"]
-
-def check_intent(tweet):
-    tweet_lower = tweet.lower()
-    if any(keyword in tweet_lower for keyword in IMPORTANT_KEYWORDS):
-        return "important"
-    if any(keyword in tweet_lower for keyword in IGNORE_KEYWORDS):
-        return "ignore"
-    return "normal"
-
-# Message Templates
-TEMPLATES = [
-    "🚨 Quest Alert 🚨\n\n{tweet}",
-    "📢 Weekly Community Call Announcement!\n\n{tweet}",
-    "⭐ Special Announcement ⭐\n\n{tweet}"
-]
-
-# Ensure the link is included only if it's missing
-def add_zop_labs_link(message):
-    if ZOP_LABS_LINK not in message:
-        return f"{message}\n\n🔗 {ZOP_LABS_LINK}"
-    return message
-
-# Generate Telegram Message
-def generate_telegram_message(tweet):
-    intent = check_intent(tweet)
-    
-    if intent == "ignore":
-        print("⏳ Tweet is not important, skipping.")
-        return None
-    
+# OpenAI-based Intent Detection
+async def get_tweet_intent(tweet):
     try:
-        response = openai_client.chat.completions.create(
-            model="gpt-4o-mini",
+        response = await openai_client.chat.completions.create(  # ✅ Fixed OpenAI API Call
+            model="gpt-4o",
             messages=[
-                {"role": "system", "content": "You are a social media assistant. Format tweets into engaging Telegram posts."},
-                {"role": "user", "content": f'Tweet: "{tweet}". Format this tweet in an engaging way using a friendly and attention-grabbing style.'}
+                {"role": "system", "content": "You are a tweet analyzer. Categorize the tweet as 'important', 'normal', or 'ignore' based on its content."},
+                {"role": "user", "content": f"Analyze the following tweet:\n\n{tweet}\n\nReturn only one of these categories: important, normal, ignore."}
             ]
         )
-        message = response.choices[0].message.content
+        intent = response.choices[0].message.content.strip().lower()
+        return intent if intent in ["important", "normal", "ignore"] else "normal"
     except Exception as e:
         print(f"❌ OpenAI API error: {e}")
-        message = random.choice(TEMPLATES).format(tweet=tweet)  # Use random template if API fails
-    
-    return add_zop_labs_link(message)  # Ensure link is added only if missing
+        return "normal"
 
-# Send Telegram Message (Async Fix)
+# Format Message (Escape Markdown + Random Template)
+def format_message(tweet, tweet_link):
+    tweet = escape_markdown(tweet, version=2)  # ✅ Escape Markdown for Telegram
+    tweet_link = escape_markdown(tweet_link, version=2)
+    zop_labs_link = escape_markdown(ZOP_LABS_LINK, version=2)
+
+    # Select a random message template 🎲
+    message_template = random.choice(MESSAGE_TEMPLATES)
+
+    return message_template.format(tweet=tweet, tweet_link=tweet_link, zop_labs_link=zop_labs_link)
+
+# Send Telegram Message
 async def send_telegram_message(message):
     try:
-        await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
+        await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message, parse_mode="MarkdownV2")
         print("✅ Message sent to Telegram!")
     except Exception as e:
         print(f"❌ Telegram error: {e}")
@@ -103,19 +94,24 @@ async def send_telegram_message(message):
 # Main Loop
 async def main():
     last_tweet = load_last_tweet()
+    
     while True:
-        tweet = read_latest_tweet()
+        tweet, tweet_link = read_latest_tweet()
         if tweet and tweet != last_tweet:
-            message = generate_telegram_message(tweet)
-            if message:
+            intent = await get_tweet_intent(tweet)  # ✅ Awaiting async function
+            
+            if intent == "ignore":
+                print("⏳ Tweet is not important, skipping.")
+            else:
+                message = format_message(tweet, tweet_link)
                 await send_telegram_message(message)
-                save_last_tweet(tweet)  # Store last tweet to avoid duplicates
+                save_last_tweet(tweet)
                 last_tweet = tweet
         else:
             print("⏳ No new tweet found.")
         
-        await asyncio.sleep(60)  # Use asyncio.sleep to prevent blocking
+        await asyncio.sleep(60)
 
 # Run the async main function
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(main())  # ✅ Corrected for async execution
