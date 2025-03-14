@@ -4,6 +4,7 @@ import openai
 import telegram
 import asyncio
 import random
+import hashlib
 from telegram.helpers import escape_markdown
 from dotenv import load_dotenv
 
@@ -14,13 +15,13 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-openai_client = openai.AsyncOpenAI(api_key=OPENAI_API_KEY)  # ✅ Corrected API Call
+openai_client = openai.AsyncOpenAI(api_key=OPENAI_API_KEY)
 bot = telegram.Bot(token=TELEGRAM_BOT_TOKEN)
 
 # Zop Labs link
 ZOP_LABS_LINK = "https://x.com/joinzo"
 
-# Predefined Message Templates 🔥
+# Predefined Message Templates
 MESSAGE_TEMPLATES = [
     "🚀 *Breaking News\!* 🚀\n\n{tweet}\n\n🔗 [Tweet Link]({tweet_link})\n🌟 Stay updated with [Zop Labs]({zop_labs_link})",
     "🎯 *Quest Alert\!* 🎯\n\n📢 {tweet}\n\n🔗 [Tweet Link]({tweet_link})\n🔍 Learn more at [Zop Labs]({zop_labs_link})",
@@ -37,29 +38,33 @@ def read_latest_tweet():
     try:
         with open("latest_tweet.json", "r", encoding="utf-8") as file:
             data = json.load(file)
-            return data.get("tweet"), data.get("tweet_link")
+            return data.get("tweet", "").strip(), data.get("tweet_link", "")
     except (FileNotFoundError, json.JSONDecodeError):
         print("❌ No valid tweet file found.")
         return None, None
 
-# Save last processed tweet
-def save_last_tweet(tweet):
-    with open("last_tweet.json", "w", encoding="utf-8") as file:
-        json.dump({"last_tweet": tweet}, file, ensure_ascii=False)
+# Generate a hash for a given tweet
+def generate_tweet_hash(tweet):
+    return hashlib.sha256(tweet.lower().strip().encode()).hexdigest()
 
-# Load last processed tweet
-def load_last_tweet():
+# Save last processed tweet hash
+def save_last_tweet_hash(tweet_hash):
+    with open("last_tweet.json", "w", encoding="utf-8") as file:
+        json.dump({"last_tweet_hash": tweet_hash}, file, ensure_ascii=False)
+
+# Load last processed tweet hash
+def load_last_tweet_hash():
     try:
         with open("last_tweet.json", "r", encoding="utf-8") as file:
             data = json.load(file)
-            return data.get("last_tweet")
+            return data.get("last_tweet_hash")
     except (FileNotFoundError, json.JSONDecodeError):
         return None
 
 # OpenAI-based Intent Detection
 async def get_tweet_intent(tweet):
     try:
-        response = await openai_client.chat.completions.create(  # ✅ Fixed OpenAI API Call
+        response = await openai_client.chat.completions.create(
             model="gpt-4o",
             messages=[
                 {"role": "system", "content": "You are a tweet analyzer. Categorize the tweet as 'important', 'normal', or 'ignore' based on its content."},
@@ -72,13 +77,28 @@ async def get_tweet_intent(tweet):
         print(f"❌ OpenAI API error: {e}")
         return "normal"
 
+# OpenAI-based Tweet Enhancement
+async def enhance_tweet(tweet):
+    try:
+        response = await openai_client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are a social media expert. Rewrite the tweet to make it more engaging, using emojis and excitement while keeping the main message the same."},
+                {"role": "user", "content": f"Original Tweet:\n{tweet}\n\nMake it more exciting with emojis and engaging language."}
+            ]
+        )
+        enhanced_tweet = response.choices[0].message.content.strip()
+        return enhanced_tweet
+    except Exception as e:
+        print(f"❌ OpenAI API error: {e}")
+        return tweet  # Fallback to original tweet if there's an error
+
 # Format Message (Escape Markdown + Random Template)
 def format_message(tweet, tweet_link):
-    tweet = escape_markdown(tweet, version=2)  # ✅ Escape Markdown for Telegram
+    tweet = escape_markdown(tweet, version=2)
     tweet_link = escape_markdown(tweet_link, version=2)
     zop_labs_link = escape_markdown(ZOP_LABS_LINK, version=2)
 
-    # Select a random message template 🎲
     message_template = random.choice(MESSAGE_TEMPLATES)
 
     return message_template.format(tweet=tweet, tweet_link=tweet_link, zop_labs_link=zop_labs_link)
@@ -93,20 +113,25 @@ async def send_telegram_message(message):
 
 # Main Loop
 async def main():
-    last_tweet = load_last_tweet()
+    last_tweet_hash = load_last_tweet_hash()
     
     while True:
         tweet, tweet_link = read_latest_tweet()
-        if tweet and tweet != last_tweet:
-            intent = await get_tweet_intent(tweet)  # ✅ Awaiting async function
-            
-            if intent == "ignore":
-                print("⏳ Tweet is not important, skipping.")
+        if tweet:
+            current_tweet_hash = generate_tweet_hash(tweet)
+            if current_tweet_hash != last_tweet_hash:
+                intent = await get_tweet_intent(tweet)
+                
+                if intent == "ignore":
+                    print("⏳ Tweet is not important, skipping.")
+                else:
+                    tweet = await enhance_tweet(tweet)
+                    message = format_message(tweet, tweet_link)
+                    await send_telegram_message(message)
+                    save_last_tweet_hash(current_tweet_hash)
+                    last_tweet_hash = current_tweet_hash
             else:
-                message = format_message(tweet, tweet_link)
-                await send_telegram_message(message)
-                save_last_tweet(tweet)
-                last_tweet = tweet
+                print("⏳ Duplicate tweet detected, skipping.")
         else:
             print("⏳ No new tweet found.")
         
@@ -114,4 +139,4 @@ async def main():
 
 # Run the async main function
 if __name__ == "__main__":
-    asyncio.run(main())  # ✅ Corrected for async execution
+    asyncio.run(main())
