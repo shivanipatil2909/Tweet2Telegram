@@ -3,8 +3,8 @@ import json
 import openai
 import telegram
 import asyncio
-import random
 import hashlib
+import random
 from telegram.helpers import escape_markdown
 from dotenv import load_dotenv
 
@@ -47,19 +47,19 @@ def read_latest_tweet():
 def generate_tweet_hash(tweet):
     return hashlib.sha256(tweet.lower().strip().encode()).hexdigest()
 
-# Save last processed tweet hash
-def save_last_tweet_hash(tweet_hash):
-    with open("last_tweet.json", "w", encoding="utf-8") as file:
-        json.dump({"last_tweet_hash": tweet_hash}, file, ensure_ascii=False)
+# Save processed tweets (including ignored ones)
+def save_processed_tweets(last_hash, ignored_hashes):
+    with open("processed_tweets.json", "w", encoding="utf-8") as file:
+        json.dump({"last_tweet_hash": last_hash, "ignored_hashes": list(ignored_hashes)}, file, ensure_ascii=False)
 
-# Load last processed tweet hash
-def load_last_tweet_hash():
+# Load processed tweets
+def load_processed_tweets():
     try:
-        with open("last_tweet.json", "r", encoding="utf-8") as file:
+        with open("processed_tweets.json", "r", encoding="utf-8") as file:
             data = json.load(file)
-            return data.get("last_tweet_hash")
+            return data.get("last_tweet_hash"), set(data.get("ignored_hashes", []))
     except (FileNotFoundError, json.JSONDecodeError):
-        return None
+        return None, set()
 
 # OpenAI-based Intent Detection
 async def get_tweet_intent(tweet):
@@ -87,8 +87,7 @@ async def enhance_tweet(tweet):
                 {"role": "user", "content": f"Original Tweet:\n{tweet}\n\nMake it more exciting with emojis and engaging language."}
             ]
         )
-        enhanced_tweet = response.choices[0].message.content.strip()
-        return enhanced_tweet
+        return response.choices[0].message.content.strip()
     except Exception as e:
         print(f"❌ OpenAI API error: {e}")
         return tweet  # Fallback to original tweet if there's an error
@@ -106,35 +105,43 @@ def format_message(tweet, tweet_link):
 # Send Telegram Message
 async def send_telegram_message(message):
     try:
-        await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message, parse_mode="MarkdownV2")
+        async with bot:
+            await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message, parse_mode="MarkdownV2")
         print("✅ Message sent to Telegram!")
     except Exception as e:
         print(f"❌ Telegram error: {e}")
 
 # Main Loop
 async def main():
-    last_tweet_hash = load_last_tweet_hash()
+    last_tweet_hash, ignored_hashes = load_processed_tweets()
     
     while True:
         tweet, tweet_link = read_latest_tweet()
         if tweet:
             current_tweet_hash = generate_tweet_hash(tweet)
-            if current_tweet_hash != last_tweet_hash:
+
+            # Skip if tweet is ignored or duplicate
+            if current_tweet_hash in ignored_hashes:
+                print("⏳ Ignored tweet detected, skipping.")
+            elif current_tweet_hash == last_tweet_hash:
+                print("⏳ Duplicate tweet detected, skipping.")
+            else:
                 intent = await get_tweet_intent(tweet)
                 
                 if intent == "ignore":
-                    print("⏳ Tweet is not important, skipping.")
+                    print("⏳ Tweet marked as 'ignore', skipping.")
+                    ignored_hashes.add(current_tweet_hash)
                 else:
                     tweet = await enhance_tweet(tweet)
                     message = format_message(tweet, tweet_link)
                     await send_telegram_message(message)
-                    save_last_tweet_hash(current_tweet_hash)
-                    last_tweet_hash = current_tweet_hash
-            else:
-                print("⏳ Duplicate tweet detected, skipping.")
+                    last_tweet_hash = current_tweet_hash  # Update last processed tweet
+            
+            # Save processed tweets
+            save_processed_tweets(last_tweet_hash, ignored_hashes)
         else:
             print("⏳ No new tweet found.")
-        
+
         await asyncio.sleep(60)
 
 # Run the async main function
