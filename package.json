@@ -1,14 +1,22 @@
 {
-  "name": "twitter-tracker",
+  "name": "twitter-telegram-bot",
   "version": "1.0.0",
-  "description": "A bot to track the latest tweet from a specific user using Rettiwt API.",
-  "type": "module",
+  "description": "",
   "main": "index.js",
+  "type": "module",
   "scripts": {
-    "start": "node index.js"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
   "dependencies": {
-    "dotenv": "^16.0.3",
-    "rettiwt-api": "^1.0.0"
+    "crypto": "^1.0.1",
+    "dotenv": "^16.4.7",
+    "fs": "^0.0.1-security",
+    "node-fetch": "^3.3.2",
+    "openai": "^4.87.3",
+    "rettiwt-api": "^4.2.0",
+    "telegram-bot-api": "^2.0.1"
   }
 }
