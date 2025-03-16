@@ -18,19 +18,19 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 openai_client = openai.AsyncOpenAI(api_key=OPENAI_API_KEY)
 bot = telegram.Bot(token=TELEGRAM_BOT_TOKEN)
 
-# Zop Labs link
-ZOP_LABS_LINK = "https://x.com/joinzo"
+# Zo Labs link
+ZO_LABS_LINK = "https://x.com/joinzo"
 
 # Predefined Message Templates
 MESSAGE_TEMPLATES = [
-    "🚀 *Breaking News\!* 🚀\n\n{tweet}\n\n🔗 [Tweet Link]({tweet_link})\n🌟 Stay updated with [Zop Labs]({zop_labs_link})",
-    "🎯 *Quest Alert\!* 🎯\n\n📢 {tweet}\n\n🔗 [Tweet Link]({tweet_link})\n🔍 Learn more at [Zop Labs]({zop_labs_link})",
-    "🔥 *Web3 Game Changer\!* 🔥\n\n{tweet}\n\n🚀 Read now: [Tweet Link]({tweet_link})\n🔗 More at [Zop Labs]({zop_labs_link})",
-    "🎉 *Big Announcement\!* 🎉\n\n{tweet}\n\n🔗 Read more: [Tweet Link]({tweet_link})\n👀 Check out [Zop Labs]({zop_labs_link})",
-    "💡 *Innovator Spotlight\!* 💡\n\n🚀 {tweet}\n\n🔗 [Tweet Link]({tweet_link})\n🌍 Stay tuned with [Zop Labs]({zop_labs_link})",
-    "📢 *Community Call\!* 📢\n\n{tweet}\n\n🔗 [Tweet Link]({tweet_link})\n📅 Join us at [Zop Labs]({zop_labs_link})",
-    "🛠 *Dev Update\!* 🛠\n\n{tweet}\n\n🔗 [Tweet Link]({tweet_link})\n👨‍💻 Explore at [Zop Labs]({zop_labs_link})",
-    "🚨 *Security Alert\!* 🚨\n\n{tweet}\n\n🔗 [Tweet Link]({tweet_link})\n🔍 Stay secure with [Zop Labs]({zop_labs_link})"
+    "🚀 *Breaking News\!* 🚀\n\n{tweet}\n\n🔗 [Tweet Link]({tweet_link})\n🌟 Stay updated with [Zo Labs]({zo_labs_link})",
+    "🎯 *Quest Alert\!* 🎯\n\n📢 {tweet}\n\n🔗 [Tweet Link]({tweet_link})\n🔍 Learn more at [Zo Labs]({zo_labs_link})",
+    "🔥 *Web3 Game Changer\!* 🔥\n\n{tweet}\n\n🚀 Read now: [Tweet Link]({tweet_link})\n🔗 More at [Zo Labs]({zo_labs_link})",
+    "🎉 *Big Announcement\!* 🎉\n\n{tweet}\n\n🔗 Read more: [Tweet Link]({tweet_link})\n👀 Check out [Zo Labs]({zo_labs_link})",
+    "💡 *Innovator Spotlight\!* 💡\n\n🚀 {tweet}\n\n🔗 [Tweet Link]({tweet_link})\n🌍 Stay tuned with [Zo Labs]({zo_labs_link})",
+    "📢 *Community Call\!* 📢\n\n{tweet}\n\n🔗 [Tweet Link]({tweet_link})\n📅 Join us at [Zo Labs]({zo_labs_link})",
+    "🛠 *Dev Update\!* 🛠\n\n{tweet}\n\n🔗 [Tweet Link]({tweet_link})\n👨‍💻 Explore at [Zo Labs]({zo_labs_link})",
+    "🚨 *Security Alert\!* 🚨\n\n{tweet}\n\n🔗 [Tweet Link]({tweet_link})\n🔍 Stay secure with [Zo Labs]({zo_labs_link})"
 ]
 
 # Read latest tweet from JSON file
@@ -65,7 +65,7 @@ def load_processed_tweets():
 async def get_tweet_intent(tweet):
     try:
         response = await openai_client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "You are a tweet analyzer. Categorize the tweet as 'important', 'normal', or 'ignore' based on its content."},
                 {"role": "user", "content": f"Analyze the following tweet:\n\n{tweet}\n\nReturn only one of these categories: important, normal, ignore."}
@@ -81,7 +81,7 @@ async def get_tweet_intent(tweet):
 async def enhance_tweet(tweet):
     try:
         response = await openai_client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "You are a social media expert. Rewrite the tweet to make it more engaging, using emojis and excitement while keeping the main message the same."},
                 {"role": "user", "content": f"Original Tweet:\n{tweet}\n\nMake it more exciting with emojis and engaging language."}
@@ -96,11 +96,11 @@ async def enhance_tweet(tweet):
 def format_message(tweet, tweet_link):
     tweet = escape_markdown(tweet, version=2)
     tweet_link = escape_markdown(tweet_link, version=2)
-    zop_labs_link = escape_markdown(ZOP_LABS_LINK, version=2)
+    zo_labs_link = escape_markdown(ZO_LABS_LINK, version=2)
 
     message_template = random.choice(MESSAGE_TEMPLATES)
 
-    return message_template.format(tweet=tweet, tweet_link=tweet_link, zop_labs_link=zop_labs_link)
+    return message_template.format(tweet=tweet, tweet_link=tweet_link, zo_labs_link=zo_labs_link)
 
 # Send Telegram Message
 async def send_telegram_message(message):
