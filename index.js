@@ -1,9 +1,13 @@
+import express from "express";
 import { Rettiwt } from "rettiwt-api";
 import dotenv from "dotenv";
 import fs from "fs";
 import { spawn } from "child_process";
 
 dotenv.config();
+
+const app = express();
+const PORT = process.env.PORT || 3000;
 
 const apiKey = process.env.API_KEY;
 const username = "joinzo"; // Change this to the correct Twitter/X username
@@ -75,5 +79,14 @@ async function getLatestTweet() {
     }
 }
 
-// ✅ Run every 60 seconds
+// ✅ Run tweet check every 60 seconds
 setInterval(getLatestTweet, 60000);
+
+// ✅ Add a basic web server for Render
+app.get("/", (req, res) => {
+    res.send("🚀 Twitter bot is running...");
+});
+
+app.listen(PORT, () => {
+    console.log(`✅ Server running on port ${PORT}`);
+});
