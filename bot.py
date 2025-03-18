@@ -170,17 +170,12 @@ bot = telegram.Bot(token=TELEGRAM_BOT_TOKEN)
 # Blunt Eye Media Twitter link
 BLUNT_EYE_MEDIA_LINK = "https://twitter.com/BluntEyeMedia"
 
-# Predefined Message Templates
-MESSAGE_TEMPLATES = [
-    "🚀 *Breaking News\!* 🚀\n\n{tweet}\n\n🔗 [Tweet Link]({tweet_link})\n🌟 Stay updated with [Blunt Eye Media]({blunt_eye_media_link})",
-    "🎯 *Exclusive Insight\!* 🎯\n\n📢 {tweet}\n\n🔗 [Tweet Link]({tweet_link})\n🔍 More at [Blunt Eye Media]({blunt_eye_media_link})",
-    "🔥 *Web3 Game Changer\!* 🔥\n\n{tweet}\n\n🚀 Read now: [Tweet Link]({tweet_link})\n🔗 Stay informed with [Blunt Eye Media]({blunt_eye_media_link})",
-    "🎉 *Big Announcement\!* 🎉\n\n{tweet}\n\n🔗 Read more: [Tweet Link]({tweet_link})\n👀 Follow [Blunt Eye Media]({blunt_eye_media_link})",
-    "💡 *Innovator Spotlight\!* 💡\n\n🚀 {tweet}\n\n🔗 [Tweet Link]({tweet_link})\n🌍 Stay updated with [Blunt Eye Media]({blunt_eye_media_link})",
-    "📢 *Community Call\!* 📢\n\n{tweet}\n\n🔗 [Tweet Link]({tweet_link})\n📅 Join us at [Blunt Eye Media]({blunt_eye_media_link})",
-    "🛠 *Tech Update\!* 🛠\n\n{tweet}\n\n🔗 [Tweet Link]({tweet_link})\n👨‍💻 Explore more at [Blunt Eye Media]({blunt_eye_media_link})",
-    "🚨 *Security Alert\!* 🚨\n\n{tweet}\n\n🔗 [Tweet Link]({tweet_link})\n🔍 Stay secure with [Blunt Eye Media]({blunt_eye_media_link})"
-]
+# Message Templates for each category
+MESSAGE_TEMPLATES = {
+    "partnership": "🤝 *New Partnership Alert\!* 🤝\n\n{tweet}\n\n🔗 [Tweet Link]({tweet_link})\n🚀 Stay updated with [Blunt Eye Media]({blunt_eye_media_link})",
+    "announcement": "📢 *Important Announcement\!* 📢\n\n{tweet}\n\n🔗 [Tweet Link]({tweet_link})\n📍 Follow [Blunt Eye Media]({blunt_eye_media_link})",
+    "ama": "🎤 *AMA Session Incoming\!* 🎤\n\n{tweet}\n\n🔗 [Tweet Link]({tweet_link})\n💬 Join the discussion at [Blunt Eye Media]({blunt_eye_media_link})"
+}
 
 # Read latest tweet from JSON file
 def read_latest_tweet():
@@ -210,21 +205,21 @@ def load_processed_tweets():
     except (FileNotFoundError, json.JSONDecodeError):
         return None, set()
 
-# OpenAI-based Intent Detection
-async def get_tweet_intent(tweet):
+# OpenAI-based Intent Detection (Categorizing Tweet)
+async def get_tweet_category(tweet):
     try:
         response = await openai_client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "You are a tweet analyzer. Categorize the tweet as 'important', 'normal', or 'ignore' based on its content."},
-                {"role": "user", "content": f"Analyze the following tweet:\n\n{tweet}\n\nReturn only one of these categories: important, normal, ignore."}
+                {"role": "system", "content": "You are a tweet classifier. Categorize the tweet into 'partnership', 'announcement', 'ama', or 'ignore'."},
+                {"role": "user", "content": f"Analyze this tweet:\n\n{tweet}\n\nReturn only one category: partnership, announcement, ama, or ignore."}
             ]
         )
-        intent = response.choices[0].message.content.strip().lower()
-        return intent if intent in ["important", "normal", "ignore"] else "normal"
+        category = response.choices[0].message.content.strip().lower()
+        return category if category in ["partnership", "announcement", "ama"] else "ignore"
     except Exception as e:
         print(f"❌ OpenAI API error: {e}")
-        return "normal"
+        return "ignore"
 
 # OpenAI-based Tweet Enhancement
 async def enhance_tweet(tweet):
@@ -232,7 +227,7 @@ async def enhance_tweet(tweet):
         response = await openai_client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "You are a social media expert. Rewrite the tweet to make it more engaging, using emojis and excitement while keeping the main message the same."},
+                {"role": "system", "content": "You are a social media expert. Rewrite the tweet to make it more engaging with emojis and excitement while keeping the message intact."},
                 {"role": "user", "content": f"Original Tweet:\n{tweet}\n\nMake it more exciting with emojis and engaging language."}
             ]
         )
@@ -241,13 +236,13 @@ async def enhance_tweet(tweet):
         print(f"❌ OpenAI API error: {e}")
         return tweet  # Fallback to original tweet if there's an error
 
-# Format Message (Escape Markdown + Random Template)
-def format_message(tweet, tweet_link):
+# Format Message (Escape Markdown + Category Selection)
+def format_message(tweet, tweet_link, category):
     tweet = escape_markdown(tweet, version=2)
     tweet_link = escape_markdown(tweet_link, version=2)
     blunt_eye_media_link = escape_markdown(BLUNT_EYE_MEDIA_LINK, version=2)
 
-    message_template = random.choice(MESSAGE_TEMPLATES)
+    message_template = MESSAGE_TEMPLATES.get(category, MESSAGE_TEMPLATES["announcement"])
     return message_template.format(tweet=tweet, tweet_link=tweet_link, blunt_eye_media_link=blunt_eye_media_link)
 
 # Send Telegram Message
@@ -271,12 +266,13 @@ async def main():
             if current_tweet_hash in ignored_hashes or current_tweet_hash == last_tweet_hash:
                 print("⏳ Skipping tweet (ignored or duplicate).")
             else:
-                intent = await get_tweet_intent(tweet)
-                if intent == "ignore":
+                category = await get_tweet_category(tweet)
+                if category == "ignore":
                     ignored_hashes.add(current_tweet_hash)
+                    print("🚫 Tweet ignored (not relevant).")
                 else:
                     tweet = await enhance_tweet(tweet)
-                    message = format_message(tweet, tweet_link)
+                    message = format_message(tweet, tweet_link, category)
                     await send_telegram_message(message)
                     last_tweet_hash = current_tweet_hash
             save_processed_tweets(last_tweet_hash, ignored_hashes)
