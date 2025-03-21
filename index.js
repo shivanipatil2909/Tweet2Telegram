@@ -10,7 +10,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 const apiKey = process.env.API_KEY;
-const username = "blunteyemedia"; // Change this to the correct Twitter/X username
+const username = "joinzo"; // Updated Twitter/X username
 let lastTweetId = null;
 
 // ✅ Function to run Python script
