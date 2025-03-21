@@ -18,13 +18,13 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 openai_client = openai.AsyncOpenAI(api_key=OPENAI_API_KEY)
 bot = telegram.Bot(token=TELEGRAM_BOT_TOKEN)
 
-BLUNT_EYE_MEDIA_LINK = "https://twitter.com/BluntEyeMedia"
+BLUNT_EYE_MEDIA_LINK = "https://twitter.com/joinzo"
 
 # Message Templates for three categories
 MESSAGE_TEMPLATES = {
     "partnership": "🤝 *New Partnership Alert\!* 🤝\n\nWe’re excited to announce a new partnership that strengthens the Zo ecosystem\! Stay tuned for exciting updates and new opportunities\.\n\nFollow us on X to stay tuned\! \n\n🔗 [Tweet Link]({tweet_link})",
     "announcement": "🚀 *Big Announcement\!* 🚀\n\n{tweet}\n\nStay updated with the latest news\! \n\n🔗 [Tweet Link]({tweet_link})",
-    "ama": "🎙️ *AMA Session Incoming\!* 🎙️\n\n{tweet}\n\nDon’t miss out\! Join us for insights and discussions\.\n\n🔗 [Tweet Link]({tweet_link})"
+    "ama": "🎧 *AMA Session Incoming\!* 🎧\n\n{tweet}\n\nDon’t miss out\! Join us for insights and discussions\.\n\n🔗 [Tweet Link]({tweet_link})"
 }
 
 # Read latest tweet from JSON file
